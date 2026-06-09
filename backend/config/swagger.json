@@ -1,0 +1,785 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "RentEase - Furniture & Appliance Rental Platform REST API",
+    "description": "Comprehensive REST API for RentEase platform supporting Authentication, Product Catalog, Rental Subscriptions, Maintenance Tickets, and Serviceability Pincode Coverage.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT token in the format: bearer <token>"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "role": { "type": "string", "enum": ["user", "admin", "vendor"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "required": ["name", "description", "category", "monthlyRent", "securityDeposit", "tenureOptions", "stock"],
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "Premium Wooden Sofa Set" },
+          "description": { "type": "string", "example": "Ergonomic 3-seater wooden sofa set with organic linen cushion cover." },
+          "category": { "type": "string", "enum": ["Furniture", "Appliances"], "example": "Furniture" },
+          "monthlyRent": { "type": "number", "example": 899 },
+          "securityDeposit": { "type": "number", "example": 2000 },
+          "tenureOptions": {
+            "type": "array",
+            "items": { "type": "number" },
+            "example": [3, 6, 12]
+          },
+          "stock": { "type": "number", "example": 5 },
+          "imageUrl": { "type": "string", "example": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc" }
+        }
+      },
+      "Rental": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "user": { "type": "string" },
+          "product": { "type": "string" },
+          "startDate": { "type": "string", "format": "date-time" },
+          "endDate": { "type": "string", "format": "date-time" },
+          "tenureMonths": { "type": "number", "example": 6 },
+          "monthlyRent": { "type": "number", "example": 899 },
+          "securityDeposit": { "type": "number", "example": 2000 },
+          "totalCost": { "type": "number", "example": 7394 },
+          "deliveryAddress": { "type": "string", "example": "Flat 402, Oakwood Residences, Bangalore" },
+          "deliveryDate": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["Pending", "Active", "Completed", "Cancelled"] },
+          "deliveryStatus": { "type": "string", "enum": ["Pending", "Shipped", "Delivered"], "default": "Pending" },
+          "pickupDate": { "type": "string", "format": "date-time" },
+          "disputeStatus": { "type": "string", "enum": ["None", "Raised", "Resolved"], "default": "None" },
+          "disputeDescription": { "type": "string", "default": "" },
+          "damageClaim": { "type": "boolean", "default": false },
+          "damageDescription": { "type": "string", "default": "" }
+        }
+      },
+      "Maintenance": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "rental": { "type": "string" },
+          "user": { "type": "string" },
+          "issueDescription": { "type": "string", "example": "The washing machine drum spinner is making a loud rattling sound." },
+          "status": { "type": "string", "enum": ["Pending", "In Progress", "Resolved"] },
+          "resolutionNotes": { "type": "string", "default": "" }
+        }
+      },
+      "ServiceArea": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "Bangalore Central" },
+          "pincode": { "type": "string", "example": "560001" },
+          "active": { "type": "boolean", "default": true }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new RentEase user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password"],
+                "properties": {
+                  "name": { "type": "string", "example": "John Doe" },
+                  "email": { "type": "string", "example": "user@rentease.com" },
+                  "password": { "type": "string", "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully and logged in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "_id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "email": { "type": "string" },
+                    "role": { "type": "string" },
+                    "accessToken": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "User already exists or validation failed" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Authenticate user & get tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "example": "admin@rentease.com" },
+                  "password": { "type": "string", "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "_id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "email": { "type": "string" },
+                    "role": { "type": "string" },
+                    "accessToken": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid email or password" }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get authenticated user profile details",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current profile details returned",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/User" } }
+            }
+          },
+          "401": { "description": "Authorization token invalid or missing" }
+        }
+      }
+    },
+    "/api/auth": {
+      "get": {
+        "tags": ["Authentication (Admin Only)"],
+        "summary": "Get all system users list",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of all users returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/User" }
+                }
+              }
+            }
+          },
+          "403": { "description": "Unauthorized access - Administrator rights required" }
+        }
+      }
+    },
+    "/api/auth/{id}/role": {
+      "put": {
+        "tags": ["Authentication (Admin Only)"],
+        "summary": "Modify user authorization role privileges",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User database ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["role"],
+                "properties": {
+                  "role": { "type": "string", "enum": ["user", "admin", "vendor"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User role modified successfully",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/User" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "get": {
+        "tags": ["Products Catalog"],
+        "summary": "Get all products in catalog",
+        "responses": {
+          "200": {
+            "description": "Array of products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Product" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Products Catalog (Admin Only)"],
+        "summary": "Add a new product to catalog",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/Product" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created successfully",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Product" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "tags": ["Products Catalog"],
+        "summary": "Find a product by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product details returned",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Product" } }
+            }
+          },
+          "404": { "description": "Product not found" }
+        }
+      },
+      "put": {
+        "tags": ["Products Catalog (Admin Only)"],
+        "summary": "Edit existing catalog product specification",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/Product" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated successfully"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Products Catalog (Admin Only)"],
+        "summary": "Delete a product from inventory",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Product deleted successfully" }
+        }
+      }
+    },
+    "/api/rentals": {
+      "get": {
+        "tags": ["Rentals Subscriptions (Admin Only)"],
+        "summary": "Get all rental subscriptions across system",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of all rentals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Rental" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Rentals Subscriptions"],
+        "summary": "Create a single product subscription rental",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["product", "tenureMonths", "deliveryAddress", "deliveryDate"],
+                "properties": {
+                  "product": { "type": "string", "example": "product_mongo_id" },
+                  "tenureMonths": { "type": "number", "example": 6 },
+                  "deliveryAddress": { "type": "string", "example": "Flat 402, Oakwood Residences, Bangalore" },
+                  "deliveryDate": { "type": "string", "format": "date", "example": "2026-06-01" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rental created successfully",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Rental" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/rentals/batch": {
+      "post": {
+        "tags": ["Rentals Subscriptions"],
+        "summary": "Checkout cart (Batch creation of multiple rentals)",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["items", "deliveryAddress", "deliveryDate"],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["product", "tenureMonths", "quantity"],
+                      "properties": {
+                        "product": { "type": "string", "example": "product_mongo_id" },
+                        "tenureMonths": { "type": "number", "example": 6 },
+                        "quantity": { "type": "number", "example": 1 }
+                      }
+                    }
+                  },
+                  "deliveryAddress": { "type": "string", "example": "Flat 402, Oakwood Residences, Bangalore" },
+                  "deliveryDate": { "type": "string", "format": "date", "example": "2026-06-01" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Batch rentals checked out successfully",
+            "content": {
+              "application/json": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Rental" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rentals/myrentals": {
+      "get": {
+        "tags": ["Rentals Subscriptions"],
+        "summary": "Get authenticated user's active/past rentals list",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of customer's contracts",
+            "content": {
+              "application/json": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Rental" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rentals/{id}/status": {
+      "put": {
+        "tags": ["Rentals Subscriptions (Admin Only)"],
+        "summary": "Update rental contract states, tracking, dispatches, and disputes",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string", "enum": ["Pending", "Active", "Completed", "Cancelled"] },
+                  "deliveryStatus": { "type": "string", "enum": ["Pending", "Shipped", "Delivered"] },
+                  "pickupDate": { "type": "string", "format": "date-time" },
+                  "disputeStatus": { "type": "string", "enum": ["None", "Raised", "Resolved"] },
+                  "disputeDescription": { "type": "string" },
+                  "damageClaim": { "type": "boolean" },
+                  "damageDescription": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rental contract states successfully adjusted",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Rental" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/maintenance": {
+      "get": {
+        "tags": ["Maintenance Support (Admin Only)"],
+        "summary": "List all maintenance support request tickets",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of all system support tickets",
+            "content": {
+              "application/json": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Maintenance" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Maintenance Support"],
+        "summary": "Log a new technician maintenance request ticket",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["rentalId", "issueDescription"],
+                "properties": {
+                  "rentalId": { "type": "string", "example": "rental_mongo_id" },
+                  "issueDescription": { "type": "string", "example": "The washing machine drum spinner is making a loud rattling sound." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Maintenance ticket logged",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Maintenance" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/maintenance/myrequests": {
+      "get": {
+        "tags": ["Maintenance Support"],
+        "summary": "Get authenticated user's logged maintenance tickets list",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "User's maintenance tickets returned",
+            "content": {
+              "application/json": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Maintenance" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/maintenance/{id}/status": {
+      "put": {
+        "tags": ["Maintenance Support (Admin Only)"],
+        "summary": "Update technician ticket resolution states and notes",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string", "enum": ["Pending", "In Progress", "Resolved"] },
+                  "resolutionNotes": { "type": "string", "example": "Technician visited site, replaced the motor carbon brushes. Drum rattling resolved." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ticket status updated",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Maintenance" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/serviceareas/check/{pincode}": {
+      "get": {
+        "tags": ["Serviceability Locations Check"],
+        "summary": "Verify if active delivery shipping coverage is available for a pincode",
+        "parameters": [
+          {
+            "name": "pincode",
+            "in": "path",
+            "required": true,
+            "description": "6-digit local postal PIN code",
+            "schema": { "type": "string", "example": "560001" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Location serviceability state check returned",
+            "content": {
+              "application/json": {
+                "type": "object",
+                "properties": {
+                  "serviceable": { "type": "boolean", "example": true },
+                  "name": { "type": "string", "example": "Bangalore Central" },
+                  "message": { "type": "string", "example": "Delivery is available in Bangalore Central." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/serviceareas": {
+      "get": {
+        "tags": ["Serviceability Locations Check (Admin Only)"],
+        "summary": "Get all configured active service zip codes coverages list",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Service coverages database array",
+            "content": {
+              "application/json": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ServiceArea" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Serviceability Locations Check (Admin Only)"],
+        "summary": "Create shipping coverage for a new zip code region",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "pincode"],
+                "properties": {
+                  "name": { "type": "string", "example": "New Delhi South" },
+                  "pincode": { "type": "string", "example": "110001" },
+                  "active": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Service area successfully registered",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ServiceArea" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/serviceareas/{id}": {
+      "put": {
+        "tags": ["Serviceability Locations Check (Admin Only)"],
+        "summary": "Modify serviceable status or name of shipping coverage region",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "pincode": { "type": "string" },
+                  "active": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Service area modified successfully",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ServiceArea" } }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Serviceability Locations Check (Admin Only)"],
+        "summary": "Remove a shipping coverage region from service database",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Service area removed successfully" }
+        }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "tags": ["Admin Portal Metrics (Admin Only)"],
+        "summary": "Get aggregate business reporting statistics and graphs metrics",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Reports aggregate metrics returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalRevenue": { "type": "number", "example": 14500 },
+                    "activeRentals": { "type": "number", "example": 8 },
+                    "pendingSupport": { "type": "number", "example": 1 },
+                    "totalUsers": { "type": "number", "example": 4 },
+                    "categoryStats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": { "type": "string", "example": "Furniture" },
+                          "count": { "type": "number", "example": 5 }
+                        }
+                      }
+                    },
+                    "recentRentals": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Rental" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
